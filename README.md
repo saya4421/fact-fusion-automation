@@ -34,11 +34,14 @@ A hybrid automation tool that combines the best features from:
 - ✅ Manual script approval (optional)
 
 ### 🚀 Auto-Upload & Optimization (from YT-Automation-Agent)
+- ✅ **Multi-Platform Upload**: YouTube + TikTok + Instagram Reels
 - ✅ Direct YouTube upload (OAuth2)
-- ✅ Auto-optimize titles, tags, description
-- ✅ Auto-schedule posts
-- ✅ Multi-platform (YouTube + TikTok + Reels)
+- ✅ TikTok upload via API (or browser automation)
+- ✅ Instagram Reels via Graph API
+- ✅ Auto-optimize titles, tags, description for each platform
+- ✅ Auto-schedule posts (timezone-aware)
 - ✅ Auto-reply comments (engagement boost)
+- ✅ Cross-platform analytics dashboard
 
 ---
 
@@ -131,12 +134,14 @@ python scripts/auto_upload.py --all
 | Feature | MoneyPrinter | Viral-Faceless | YT-Automation | **Fact Fusion** |
 |---------|--------------|----------------|---------------|-----------------|
 | Video Generation | ✅ | ✅ | ✅ | ✅ |
-| Local Footage Cache | ✅ | ❌ | ❌ | ✅ |
+| FREE Stock Footage | ⚠️ Pexels only | ❌ Local only | ❌ | ✅ **Pexels + Pixabay + Coverr + Mixkit** |
+| Local Footage Cache | ✅ | ✅ | ❌ | ❌ (Optional) |
 | Google Trends | ❌ | ✅ | ❌ | ✅ |
 | FREE TTS (Piper) | ❌ | ✅ | ❌ | ✅ |
 | Auto YouTube Upload | ❌ | ❌ | ✅ | ✅ |
+| Auto TikTok Upload | ❌ | ❌ | ✅ | ✅ |
+| Auto Reels Upload | ❌ | ❌ | ✅ | ✅ |
 | Auto-Optimize SEO | ❌ | ❌ | ✅ | ✅ |
-| Multi-Platform | ❌ | ❌ | ✅ | ✅ |
 | Batch Generation | ✅ | ✅ | ❌ | ✅ |
 | Web UI | ✅ | ✅ | ❌ | ✅ (planned) |
 | **Status** | ✅ Ready | 📦 Cloned | ❌ Not cloned | 🚀 **In Development** |

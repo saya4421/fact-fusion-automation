@@ -5,15 +5,25 @@ name = "Fact Fusion Automation"
 version = "1.0.0"
 debug = false
 
-# Video Source (local = 19GB cache, pexels = API)
-video_source = "local"
-local_video_path = "~/Projects/fact-fusion-automation/storage/footage"
+# Video Source - FREE Stock Providers (NO LOCAL FOOTAGE NEEDED!)
+video_source = "pexels"  # pexels, pixabay, coverr, mixkit
+fallback_sources = ["pixabay", "coverr", "mixkit"]
 
-# Pexels API (fallback if local not found)
-pexels_api_keys = []
+# Pexels API (FREE - unlimited for video generation)
+# Get key: https://www.pexels.com/api/
+pexels_api_keys = ["your_pexels_api_key_here"]
 
-# Pixabay API (optional)
+# Pixabay API (FREE - fallback)
+# Get key: https://pixabay.com/api/docs/
 pixabay_api_keys = []
+
+# Coverr API (FREE - fallback)
+# Get key: https://coverr.co/api
+coverr_api_keys = []
+
+# Mixkit API (FREE - fallback)
+# Get key: https://mixkit.co/api/
+mixkit_api_keys = []
 
 # LLM Configuration
 llm_provider = "gemini"  # gemini or openai
