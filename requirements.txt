@@ -14,8 +14,9 @@ openai>=1.0.0
 # Note: Piper requires manual install or use edge_tts as fallback
 # piper-tts>=1.0.0
 
-# Subtitle Alignment (Aeneas) - requires numpy first
-aeneas>=1.7.3
+# Subtitle Alignment (Aeneas) - OPTIONAL, install manually if needed
+# aeneas>=1.7.3
+# Install: pip install aeneas (requires numpy, ffmpeg, espeak)
 
 # YouTube API (from YT-Automation-Agent)
 google-api-python-client>=2.0.0
