@@ -2,7 +2,7 @@ services:
   trendscraper:
     restart: unless-stopped
     build:
-      context: ./trendscraper
+      context: ./services/trendscraper
     environment:
       - GEMINI_API_KEY
       - OPENROUTER_API_KEY
@@ -25,7 +25,7 @@ services:
   piper:
     restart: unless-stopped
     build:
-      context: ./piper
+      context: ./services/piper
     environment:
       - PIPER_VOICE
       - PIPER_LANGUAGE
@@ -36,7 +36,7 @@ services:
   speechalign:
     restart: unless-stopped
     build:
-      context: ./speechalign
+      context: ./services/speechalign
   nginx:
     restart: unless-stopped
     image: nginx:latest
