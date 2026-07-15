@@ -23,8 +23,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import settings
 from app.services.video import generate_video
-from app.services.trends import get_trending_topics
 from app.services.tts_manager import generate_voiceover  # NEW: Hybrid TTS
+from app.services.trends import get_trending_topics  # NEW: Trends integration
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
