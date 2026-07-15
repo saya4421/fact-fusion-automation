@@ -21,10 +21,12 @@ A hybrid automation tool that combines the best features from:
 
 ### 🎬 Video Generation (from MoneyPrinter)
 - ✅ Stable FFmpeg-based video composition
-- ✅ 19GB local footage cache (no API limits)
+- ✅ FREE stock footage from 4 providers (Pexels, Pixabay, Coverr, Mixkit)
+- ✅ NO local footage needed (API-based, 0 GB download)
 - ✅ Batch generation (50-100 videos/hari)
 - ✅ Multiple aspect ratios (9:16, 16:9, 1:1)
 - ✅ Custom fonts, colors, captions
+- ✅ Optional local footage cache (if you have existing library)
 
 ### 📈 Auto-Trending Topics (from Viral-Faceless)
 - ✅ Google Trends scraping (viral guarantee)
@@ -153,9 +155,11 @@ python scripts/auto_upload.py --all
 ### 1. Faceless YouTube Channel (Fact Fusion)
 ```
 • Auto-generate 50 AI facts videos/hari
+• FREE stock footage (Pexels, Pixabay, Coverr, Mixkit)
 • Auto-upload + schedule
 • Auto-optimize for SEO
 • Result: 100% passive channel growth
+• Storage: 0 GB (streaming from APIs)
 ```
 
 ### 2. Client Agency Service
