@@ -1,4 +1,5 @@
 # Core Dependencies (from MoneyPrinter)
+numpy>=1.24.0
 moviepy==1.0.3
 ffmpeg-python>=0.2.0
 Pillow>=9.0.0
@@ -10,9 +11,10 @@ google-generativeai>=0.3.0
 openai>=1.0.0
 
 # TTS (Piper - FREE)
-piper-tts>=1.0.0
+# Note: Piper requires manual install or use edge_tts as fallback
+# piper-tts>=1.0.0
 
-# Subtitle Alignment (Aeneas)
+# Subtitle Alignment (Aeneas) - requires numpy first
 aeneas>=1.7.3
 
 # YouTube API (from YT-Automation-Agent)
