@@ -4,38 +4,18 @@
 name = "Fact Fusion Automation"
 version = "1.0.0"
 debug = false
-
-# Video Source - FREE Stock Providers (NO LOCAL FOOTAGE NEEDED!)
-video_source = "pexels"  # pexels, pixabay, coverr, mixkit
+video_source = "pexels"
 fallback_sources = ["pixabay", "coverr", "mixkit"]
-
-# Pexels API (FREE - unlimited for video generation)
-# Get key: https://www.pexels.com/api/
-pexels_api_keys = ["your_pexels_api_key_here"]
-
-# Pixabay API (FREE - fallback)
-# Get key: https://pixabay.com/api/docs/
+pexels_api_keys = ["qBHEjtn74KGvok8MENiwg3R2vQqCHyGPl3HhiA0WNMJPGX5PcJmFSkja"]
 pixabay_api_keys = []
-
-# Coverr API (FREE - fallback)
-# Get key: https://coverr.co/api
 coverr_api_keys = []
-
-# Mixkit API (FREE - fallback)
-# Get key: https://mixkit.co/api/
 mixkit_api_keys = []
-
-# LLM Configuration
-llm_provider = "gemini"  # gemini or openai
-
-# Gemini API (FREE tier available)
+llm_provider = "openai"
+openai_api_key = ""  # Set via config/.env (NOT in git!)
+openai_base_url = "https://api.bluesminds.com/v1"
+openai_model_name = "Qwen3.5-397B-A17B"
 gemini_api_key = ""
 gemini_model = "gemini-1.5-flash"
-
-# OpenAI (optional, if not using Gemini)
-openai_api_key = ""
-openai_base_url = ""
-openai_model = "gpt-4o-mini"
 
 # Text-to-Speech Settings
 [tts]

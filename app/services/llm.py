@@ -7,10 +7,21 @@ from typing import List
 from loguru import logger
 from openai import AzureOpenAI, OpenAI
 from openai.types.chat import ChatCompletion
-
 from app.config import config
 from app.models.llm_provider import DEFAULT_LLM_PROVIDER_ID, get_llm_provider
+from app.utils.logger import get_logger
 
+# Config access helper (dict-based)
+def get_config_value(key_path: str, default=None):
+    """Get config value using dot notation (e.g., 'app.openai_api_key')"""
+    keys = key_path.split('.')
+    value = config
+    for key in keys:
+        if isinstance(value, dict):
+            value = value.get(key, default)
+        else:
+            return default
+    return value
 _max_retries = 5
 MIN_SCRIPT_PARAGRAPH_NUMBER = 1
 MAX_SCRIPT_PARAGRAPH_NUMBER = 10

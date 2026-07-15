@@ -26,12 +26,14 @@ from loguru import logger
 
 try:
     from app.config import config
-    PIPER_URL = config.tts.piper_url if hasattr(config.tts, 'piper_url') else "http://localhost:5002"
-    EDGE_ENABLED = getattr(config.tts, 'edge_enabled', True)
-    AZURE_ENABLED = getattr(config.tts, 'azure_enabled', False)
-    GOOGLE_ENABLED = getattr(config.tts, 'google_enabled', False)
-    AZURE_KEY = getattr(config.tts, 'azure_key', None)
-    AZURE_REGION = getattr(config.tts, 'azure_region', 'eastus')
+    # Use dict access for config (settings.toml structure)
+    tts_config = config.get('tts', {})
+    PIPER_URL = tts_config.get('piper_url', "http://localhost:5002")
+    EDGE_ENABLED = tts_config.get('edge_enabled', True)
+    AZURE_ENABLED = tts_config.get('azure_enabled', False)
+    GOOGLE_ENABLED = tts_config.get('google_enabled', False)
+    AZURE_KEY = tts_config.get('azure_key', None)
+    AZURE_REGION = tts_config.get('azure_region', 'eastus')
 except ImportError:
     # Fallback for standalone usage
     PIPER_URL = "http://localhost:5002"
@@ -204,7 +206,14 @@ class HybridTTSManager:
             # Generate subtitle file
             subtitle_path = output_path.replace(".wav", ".srt").replace(".mp3", ".srt")
             with open(subtitle_path, "w", encoding="utf-8") as f:
-                f.write(submaker.generate_subs())
+                # edge-tts newer versions use 'subs' property instead of 'generate_subs()'
+                if hasattr(submaker, 'generate_subs'):
+                    f.write(submaker.generate_subs())
+                elif hasattr(submaker, 'subs'):
+                    f.write(submaker.subs)
+                else:
+                    logger.warning("Could not generate subtitles - SubMaker API changed")
+                    f.write("")  # Write empty file
             
             return output_path, subtitle_path
         
