@@ -1,0 +1,105 @@
+# Fact Fusion Automation Configuration
+
+[app]
+name = "Fact Fusion Automation"
+version = "1.0.0"
+debug = false
+
+# Video Source (local = 19GB cache, pexels = API)
+video_source = "local"
+local_video_path = "~/Projects/fact-fusion-automation/storage/footage"
+
+# Pexels API (fallback if local not found)
+pexels_api_keys = []
+
+# Pixabay API (optional)
+pixabay_api_keys = []
+
+# LLM Configuration
+llm_provider = "gemini"  # gemini or openai
+
+# Gemini API (FREE tier available)
+gemini_api_key = ""
+gemini_model = "gemini-1.5-flash"
+
+# OpenAI (optional, if not using Gemini)
+openai_api_key = ""
+openai_base_url = ""
+openai_model = "gpt-4o-mini"
+
+# Text-to-Speech Settings
+[tts]
+provider = "piper"  # piper (FREE) or edge_tts (Azure)
+voice = "en-US-GuyNeural"
+rate = 1.0
+volume = 1.0
+
+# Piper TTS Settings (FREE, offline)
+piper_voice = "en_US-lessac-medium"
+piper_language = "en"
+
+# Video Settings
+[video]
+orientation = "9:16"  # 9:16 (Shorts), 16:9 (Long), 1:1 (Square)
+resolution = "1080x1920"
+fps = 30
+bitrate = 5000
+video_codec = "h264"
+
+# Subtitle Settings
+[subtitle]
+enabled = true
+font_size = 60
+font_color = "#FFFFFF"
+stroke_color = "#000000"
+stroke_width = 2
+position = "bottom"
+
+# Background Music Settings
+[music]
+enabled = true
+volume = 0.1
+music_path = "~/Projects/fact-fusion-automation/storage/bgm"
+
+# YouTube Upload Settings
+[youtube]
+enabled = true
+oauth_client_secret = "~/.config/google/client_secret.json"
+oauth_token = "~/.config/google/youtube_token.pickle"
+
+# Auto-optimize titles, tags, description
+auto_optimize = true
+
+# Auto-schedule posts
+auto_schedule = true
+
+# Default privacy status
+privacy_status = "public"  # public, private, unlisted
+
+# Google Trends Settings (from Viral-Faceless)
+[trends]
+enabled = true
+country = "US"
+category = "all"
+refresh_interval = 3600  # seconds
+
+# Batch Generation Settings
+[batch]
+max_videos = 100
+parallel_jobs = 4
+retry_failed = true
+max_retries = 3
+
+# Storage Paths
+[storage]
+footage_path = "~/Projects/fact-fusion-automation/storage/footage"
+output_path = "~/Projects/fact-fusion-automation/storage/output"
+bgm_path = "~/Projects/fact-fusion-automation/storage/bgm"
+cache_path = "~/Projects/fact-fusion-automation/storage/cache"
+
+# Logging
+[logging]
+level = "INFO"
+file = "~/Projects/fact-fusion-automation/logs/app.log"
+max_size_mb = 100
+backup_count = 5
