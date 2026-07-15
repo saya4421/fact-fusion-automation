@@ -26,6 +26,7 @@ from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import Image, ImageDraw, ImageFont
 
 from app.config import config
+from app.services.llm import get_config_value
 from app.models import const
 from app.models.schema import (
     MaterialInfo,
@@ -144,6 +145,8 @@ def _prioritize_unique_source_clips(
     primary_items = []
     overflow_items = []
     for items in grouped_items.values():
+        if not items:
+            continue
         primary_item = max(items, key=lambda item: item.duration)
         primary_items.append(primary_item)
         overflow_items.extend(item for item in items if item is not primary_item)
@@ -1179,19 +1182,35 @@ def generate_video(
             )
 
         if subtitle_path and os.path.exists(subtitle_path):
-            sub = clip_stack.enter_context(
-                SubtitlesClip(
-                    subtitles=subtitle_path,
-                    encoding="utf-8",
-                    make_textclip=make_textclip,
-                )
-            )
-            text_clips = []
-            for item in sub.subtitles:
-                clip = create_text_clip(subtitle_item=item)
-                text_clips.append(clip)
-            video_clip = CompositeVideoClip([video_clip, *text_clips])
-            clip_stack.callback(video_clip.close)
+            # Read subtitle file to check if it has content
+            try:
+                with open(subtitle_path, 'r', encoding='utf-8') as f:
+                    subtitle_content = f.read().strip()
+                
+                # Skip subtitle if file is empty (SubMaker failed)
+                if not subtitle_content:
+                    logger.warning(f"Subtitle file is empty, skipping: {subtitle_path}")
+                    sub = None
+                else:
+                    sub = clip_stack.enter_context(
+                        SubtitlesClip(
+                            subtitles=subtitle_path,
+                            encoding="utf-8",
+                            make_textclip=make_textclip,
+                        )
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to read subtitle file, skipping: {e}")
+                sub = None
+            
+            # Only add subtitles if we have content
+            if sub and hasattr(sub, 'subtitles') and sub.subtitles:
+                text_clips = []
+                for item in sub.subtitles:
+                    clip = create_text_clip(subtitle_item=item)
+                    text_clips.append(clip)
+                video_clip = CompositeVideoClip([video_clip, *text_clips])
+                clip_stack.callback(video_clip.close)
 
         bgm_enabled = bgm_service.should_use_bgm(
             params.bgm_type, params.bgm_volume

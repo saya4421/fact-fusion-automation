@@ -213,6 +213,8 @@ def generate_batch(args):
                 
         except Exception as e:
             logger.error(f"❌ Error generating {topic}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             failed += 1
             continue
     

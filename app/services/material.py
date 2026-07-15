@@ -40,7 +40,7 @@ def get_api_key(cfg_key: str):
     if not api_keys:
         raise ValueError(
             f"\n\n##### {cfg_key} is not set #####\n\nPlease set it in the config.toml file: {config.config_file}\n\n"
-            f"{utils.to_json(config.app)}"
+            f"{utils.to_json(get_config_value('app', {}))}"
         )
 
     # if only one key is provided, return it
@@ -69,13 +69,13 @@ def search_videos_pexels(
     # Build URL
     params = {"query": search_term, "per_page": 20, "orientation": video_orientation}
     query_url = f"https://api.pexels.com/videos/search?{urlencode(params)}"
-    logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
+    logger.info(f"searching videos: {query_url}, with proxies: {get_config_value('app.proxy', {})}")
 
     try:
         r = requests.get(
             query_url,
             headers=headers,
-            proxies=config.proxy,
+            proxies=get_config_value('app.proxy', {}),
             verify=_get_tls_verify(),
             timeout=(30, 60),
         )
@@ -128,11 +128,11 @@ def search_videos_pixabay(
         "key": api_key,
     }
     query_url = f"https://pixabay.com/api/videos/?{urlencode(params)}"
-    logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
+    logger.info(f"searching videos: {query_url}, with proxies: {get_config_value('app.proxy', {})}")
 
     try:
         r = requests.get(
-            query_url, proxies=config.proxy, verify=_get_tls_verify(), timeout=(30, 60)
+            query_url, proxies=get_config_value('app.proxy', {}), verify=_get_tls_verify(), timeout=(30, 60)
         )
         response = r.json()
         video_items = []
@@ -199,13 +199,13 @@ def search_videos_coverr(
         "sort": "popular",
     }
     query_url = f"https://api.coverr.co/videos?{urlencode(params)}"
-    logger.info(f"searching videos: {query_url}, with proxies: {config.proxy}")
+    logger.info(f"searching videos: {query_url}, with proxies: {get_config_value('app.proxy', {})}")
 
     try:
         r = requests.get(
             query_url,
             headers=headers,
-            proxies=config.proxy,
+            proxies=get_config_value('app.proxy', {}),
             verify=_get_tls_verify(),
             timeout=(30, 60),
         )
@@ -269,7 +269,7 @@ def save_video(video_url: str, save_dir: str = "") -> str:
             requests.get(
                 video_url,
                 headers=headers,
-                proxies=config.proxy,
+                proxies=get_config_value('app.proxy', {}),
                 verify=_get_tls_verify(),
                 timeout=(60, 240),
             ).content
