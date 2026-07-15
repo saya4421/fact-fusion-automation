@@ -10,9 +10,15 @@ toml>=0.10.0
 google-generativeai>=0.3.0
 openai>=1.0.0
 
-# TTS (Piper - FREE)
-# Note: Piper requires manual install or use edge_tts as fallback
-# piper-tts>=1.0.0
+# TTS (Hybrid: Piper + Edge + Optional Paid)
+# Piper: Run services/piper/ Docker container (no pip install needed)
+edge-tts>=6.1.0
+
+# Optional: Azure TTS (paid, last resort fallback)
+# azure-cognitiveservices-speech>=1.30.0
+
+# Optional: Google Cloud TTS (paid, last resort fallback)
+# google-cloud-texttospeech>=2.14.0
 
 # Subtitle Alignment (Aeneas) - OPTIONAL, install manually if needed
 # aeneas>=1.7.3

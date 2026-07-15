@@ -20,11 +20,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.services.youtube import upload_to_youtube
-from app.services.tiktok import upload_to_tiktok
+from app.services.tiktok import upload_to_tiktok_sync as upload_to_tiktok
 from app.services.instagram import upload_to_instagram
-from app.utils.logger import get_logger
-
-logger = get_logger(__name__)
+from loguru import logger
 
 
 def parse_args():
