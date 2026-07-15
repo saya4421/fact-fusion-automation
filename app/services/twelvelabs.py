@@ -46,7 +46,7 @@ _PEGASUS_MIN_MAX_TOKENS = 512
 
 def is_enabled() -> bool:
     """True only when at least one TwelveLabs API key is configured."""
-    keys = config.app.get("twelvelabs_api_keys")
+    keys = get_config_value('app.twelvelabs_api_keys', None)
     return bool(keys)
 
 
@@ -76,7 +76,7 @@ def embed_text(text: str, model: Optional[str] = None) -> Optional[List[float]]:
     """
     if not is_enabled() or not text or not text.strip():
         return None
-    model = model or config.app.get("twelvelabs_marengo_model", DEFAULT_MARENGO_MODEL)
+    model = model or get_config_value('app.twelvelabs_marengo_model', DEFAULT_MARENGO_MODEL)
     try:
         # lru_cache only memoizes successful returns; a raised exception is not
         # cached, so a transient API error never poisons the cache.
@@ -107,7 +107,7 @@ def rerank_terms_by_subject(
     `twelvelabs_rerank_terms` is truthy. Falls back to the original order on
     any failure, so it can never make the pipeline worse.
     """
-    if not is_enabled() or not config.app.get("twelvelabs_rerank_terms"):
+    if not is_enabled() or not get_config_value('app.twelvelabs_rerank_terms', None):
         return search_terms
     if not video_subject or len(search_terms) < 2:
         return search_terms
@@ -149,7 +149,7 @@ def analyze_clip(
     """
     if not is_enabled() or not video_url:
         return None
-    model = model or config.app.get("twelvelabs_pegasus_model", DEFAULT_PEGASUS_MODEL)
+    model = model or get_config_value('app.twelvelabs_pegasus_model', DEFAULT_PEGASUS_MODEL)
     try:
         from twelvelabs.types import VideoContext_Url
 

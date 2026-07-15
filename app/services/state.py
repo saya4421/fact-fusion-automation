@@ -229,11 +229,11 @@ class RedisState(BaseState):
 
 
 # Global state
-_enable_redis = config.app.get("enable_redis", False)
-_redis_host = config.app.get("redis_host", "localhost")
-_redis_port = config.app.get("redis_port", 6379)
-_redis_db = config.app.get("redis_db", 0)
-_redis_password = config.app.get("redis_password", None)
+_enable_redis = get_config_value('app.enable_redis', False)
+_redis_host = get_config_value('app.redis_host', "localhost")
+_redis_port = get_config_value('app.redis_port', 6379)
+_redis_db = get_config_value('app.redis_db', 0)
+_redis_password = get_config_value('app.redis_password', None)
 
 state = (
     RedisState(

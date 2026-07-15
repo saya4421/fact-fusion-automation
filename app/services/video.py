@@ -179,7 +179,7 @@ def _get_configured_video_codec() -> str:
     参数导致输出格式不可控，甚至让生成任务在后续阶段才失败。
     """
     configured_codec = str(
-        config.app.get("video_codec", _DEFAULT_VIDEO_CODEC) or _DEFAULT_VIDEO_CODEC
+        get_config_value('app.video_codec', _DEFAULT_VIDEO_CODEC) or _DEFAULT_VIDEO_CODEC
     ).strip()
     if configured_codec not in _SUPPORTED_VIDEO_CODECS:
         logger.warning(

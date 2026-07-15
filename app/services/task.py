@@ -30,7 +30,7 @@ _cross_post_executor = ThreadPoolExecutor(
 )
 _cross_post_max_pending_tasks = max(
     1,
-    int(config.app.get("upload_post_max_pending_tasks", 10)),
+    int(get_config_value('app.upload_post_max_pending_tasks', 10)),
 )
 _cross_post_slots = threading.BoundedSemaphore(_cross_post_max_pending_tasks)
 _cross_post_registry_lock = threading.RLock()
@@ -410,7 +410,7 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
         return ""
 
     subtitle_path = path.join(utils.task_dir(task_id), "subtitle.srt")
-    subtitle_provider = config.app.get("subtitle_provider", "edge").strip().lower()
+    subtitle_provider = get_config_value('app.subtitle_provider', "edge").strip().lower()
     logger.info(f"\n\n## generating subtitle, provider: {subtitle_provider}")
 
     if not subtitle_provider:

@@ -605,8 +605,7 @@ def get_edge_tts_timeout_seconds() -> Union[float, None]:
       `edge_tts_timeout = 60`；
     - 设置为 0 或负数表示显式禁用超时，保留完全向后兼容。
     """
-    raw_timeout = config.app.get(
-        "edge_tts_timeout", _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS
+    raw_timeout = get_config_value('app.edge_tts_timeout', _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS
     )
     try:
         timeout_seconds = float(raw_timeout)
@@ -1077,7 +1076,7 @@ def gemini_tts(
     _configure_pydub_ffmpeg(AudioSegment)
     
     try:
-        api_key = config.app.get("gemini_api_key", "")
+        api_key = get_config_value('app.gemini_api_key', "")
         if not api_key:
             logger.error("Gemini API key is not set")
             return None
@@ -1199,15 +1198,14 @@ def mimo_tts(
         logger.error("MiMo TTS text is empty")
         return None
 
-    api_key = config.app.get("mimo_api_key", "")
+    api_key = get_config_value('app.mimo_api_key', "")
     if not api_key:
         logger.error("MiMo API key is not set")
         return None
 
-    base_url = config.app.get("mimo_base_url", "") or _MIMO_DEFAULT_BASE_URL
-    model_name = config.app.get("mimo_tts_model_name", "") or _MIMO_DEFAULT_TTS_MODEL
-    style_prompt = config.app.get(
-        "mimo_tts_style_prompt",
+    base_url = get_config_value('app.mimo_base_url', "") or _MIMO_DEFAULT_BASE_URL
+    model_name = get_config_value('app.mimo_tts_model_name', "") or _MIMO_DEFAULT_TTS_MODEL
+    style_prompt = get_config_value('app.mimo_tts_style_prompt',
         "请用自然、清晰、适合短视频旁白的语气朗读。",
     )
 

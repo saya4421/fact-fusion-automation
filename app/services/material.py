@@ -9,6 +9,7 @@ from loguru import logger
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from app.config import config
+from app.services.llm import get_config_value
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.utils import utils
 
@@ -21,7 +22,7 @@ def _get_tls_verify() -> bool:
     # 默认开启 TLS 证书校验，防止素材搜索和下载过程被中间人篡改。
     # 仅在企业代理、自签证书等明确需要的场景下，允许用户通过
     # `config.toml` 显式设置 `tls_verify = false` 临时关闭。
-    tls_verify = config.app.get("tls_verify", True)
+    tls_verify = get_config_value('app.tls_verify', True)
     if isinstance(tls_verify, str):
         tls_verify = tls_verify.strip().lower() not in ("0", "false", "no", "off")
 
@@ -35,7 +36,7 @@ def _get_tls_verify() -> bool:
 
 
 def get_api_key(cfg_key: str):
-    api_keys = config.app.get(cfg_key)
+    api_keys = get_config_value(f'app.{cfg_key}', [])
     if not api_keys:
         raise ValueError(
             f"\n\n##### {cfg_key} is not set #####\n\nPlease set it in the config.toml file: {config.config_file}\n\n"
@@ -317,7 +318,7 @@ def download_videos(
     elif source == "coverr":
         search_videos = search_videos_coverr
 
-    material_directory = config.app.get("material_directory", "").strip()
+    material_directory = get_config_value('app.material_directory', '').strip()
     if material_directory == "task":
         material_directory = utils.task_dir(task_id)
     elif material_directory and not os.path.isdir(material_directory):

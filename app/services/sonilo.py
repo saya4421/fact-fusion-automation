@@ -32,7 +32,7 @@ class SoniloError(RuntimeError):
 
 def get_api_key() -> str:
     """优先读取 WebUI 保存的配置，未配置时允许使用环境变量。"""
-    configured_key = str(config.app.get("sonilo_api_key", "") or "").strip()
+    configured_key = str(get_config_value('app.sonilo_api_key', "") or "").strip()
     return configured_key or os.getenv("SONILO_API_KEY", "").strip()
 
 
@@ -42,7 +42,7 @@ def is_enabled() -> bool:
 
 def _base_url() -> str:
     return str(
-        config.app.get("sonilo_base_url", DEFAULT_BASE_URL) or DEFAULT_BASE_URL
+        get_config_value('app.sonilo_base_url', DEFAULT_BASE_URL) or DEFAULT_BASE_URL
     ).rstrip(
         "/"
     )
@@ -50,7 +50,7 @@ def _base_url() -> str:
 
 def _request_timeout() -> tuple[int, int]:
     """限制配置值范围，避免无穷大或负数让请求永久挂起或立即失败。"""
-    raw_timeout = config.app.get("sonilo_timeout", 600)
+    raw_timeout = get_config_value('app.sonilo_timeout', 600)
     try:
         read_timeout = float(raw_timeout)
     except (TypeError, ValueError):

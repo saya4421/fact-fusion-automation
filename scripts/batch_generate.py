@@ -128,32 +128,87 @@ def generate_batch(args):
         try:
             logger.info(f"🎬 Generating video {i}/{len(topics)}: {topic}")
             
-            # Generate script
-            script = generate_script(topic)
+            # Step 1: Generate script
+            from app.services.llm import generate_script as llm_generate_script
+            script = llm_generate_script(
+                video_subject=topic,
+                paragraph_number=1,
+                language="en"
+            )
+            if not script:
+                logger.error(f"❌ Failed to generate script for {topic}")
+                failed += 1
+                continue
+            logger.info(f"✅ Script generated ({len(script)} chars)")
             
-            # Generate voiceover
-            audio_path = generate_voiceover(script)
+            # Step 2: Generate voiceover
+            from app.services.tts_manager import generate_voiceover as tts_generate
+            voice_name = settings.get('tts', {}).get('voice', 'en-US-GuyNeural')
+            audio_path, subtitle_path = tts_generate(text=script, voice=voice_name)
+            if not audio_path:
+                logger.error(f"❌ Failed to generate voiceover for {topic}")
+                failed += 1
+                continue
+            logger.info(f"✅ Voiceover: {audio_path}")
             
-            # Generate video
-            video_path = generate_video(
-                script=script,
-                audio_path=audio_path,
-                duration=args.duration,
-                orientation=args.orientation,
-                output_dir=output_dir
+            # Step 3: Download materials
+            from app.services.material import download_videos
+            pexels_key = settings.get('app', {}).get('pexels_api_keys', [''])[0]
+            from app.models.schema import VideoAspect
+            materials = download_videos(
+                task_id=f"video_{i}",
+                search_terms=[topic],
+                source="pexels",
+                video_aspect=VideoAspect.portrait,
+                audio_duration=args.duration,
+                max_clip_duration=5,
+                match_script_order=False
+            )
+            if not materials or len(materials) == 0:
+                logger.error(f"❌ No materials found for {topic}")
+                failed += 1
+                continue
+            logger.info(f"✅ Downloaded {len(materials)} clips")
+            
+            # Step 4: Generate final video
+            from app.services.video import generate_video
+            from app.models.schema import VideoParams
+            params = VideoParams(
+                video_subject=topic,
+                video_script=script,
+                video_aspect=VideoAspect.portrait.value,
+                voice_name=voice_name,
+                video_clip_duration=5,
+                video_count=1,
+                subtitle_enabled=True,
+                video_language='en',
+                video_source='pexels'
             )
             
-            if video_path:
-                logger.info(f"✅ Success: {video_path}")
+            output_file = os.path.join(output_dir, f"video_{i}_{topic.replace(' ', '_')[:20]}.mp4")
+            
+            # Use first material's video path
+            video_path = materials[0].url if hasattr(materials[0], 'url') else materials[0]
+            
+            result = generate_video(
+                video_path=video_path,
+                audio_path=audio_path,
+                subtitle_path=subtitle_path or "",
+                output_file=output_file,
+                params=params
+            )
+            
+            if result:
+                logger.info(f"✅ Success: {output_file}")
                 successful += 1
                 
                 # Auto-upload if enabled
                 if args.upload:
                     logger.info(f"📤 Uploading to YouTube...")
                     from app.services.youtube import upload_video
-                    upload_video(video_path, script)
+                    upload_video(output_file, script)
             else:
-                logger.error(f"❌ Failed: {topic}")
+                logger.error(f"❌ Failed: {output_file}")
                 failed += 1
                 
         except Exception as e:

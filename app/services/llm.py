@@ -22,6 +22,19 @@ def get_config_value(key_path: str, default=None):
         else:
             return default
     return value
+
+# Quick access helpers for LLM config
+def get_llm_api_key():
+    """Get LLM API key from config."""
+    return get_config_value('app.openai_api_key', '')
+
+def get_llm_base_url():
+    """Get LLM base URL from config."""
+    return get_config_value('app.openai_base_url', '')
+
+def get_llm_model():
+    """Get LLM model name from config."""
+    return get_config_value('app.openai_model_name', '')
 _max_retries = 5
 MIN_SCRIPT_PARAGRAPH_NUMBER = 1
 MAX_SCRIPT_PARAGRAPH_NUMBER = 10
@@ -151,22 +164,22 @@ def _extract_qwen_generation_text(response) -> str:
 def _generate_response(prompt: str) -> str:
     try:
         llm_provider = str(
-            config.app.get("llm_provider", DEFAULT_LLM_PROVIDER_ID)
+            get_config_value('app.llm_provider', DEFAULT_LLM_PROVIDER_ID)
         ).lower()
         provider = get_llm_provider(llm_provider)
         if provider is None:
             raise ValueError(f"{llm_provider}: unsupported llm provider")
 
         logger.info(f"llm provider: {llm_provider}")
-        api_key = config.app.get(provider.config_key("api_key"), "")
-        configured_model = config.app.get(provider.config_key("model_name"), "")
+        api_key = get_config_value(f'app.{provider.config_key("api_key")}', "")
+        configured_model = get_config_value(f'app.{provider.config_key("model_name")}', "")
         model_name = provider.resolve_model_name(configured_model)
         if configured_model and model_name != configured_model:
             logger.warning(
                 f"{llm_provider} model '{configured_model}' is deprecated, "
                 f"fallback to '{model_name}'"
             )
-        configured_base_url = config.app.get(provider.config_key("base_url"), "")
+        configured_base_url = get_config_value(f'app.{provider.config_key("base_url")}', "")
         base_url = provider.resolve_base_url(configured_base_url)
         if configured_base_url and configured_base_url.strip().rstrip("/") in {
             url.rstrip("/") for url in provider.deprecated_base_urls
@@ -186,13 +199,11 @@ def _generate_response(prompt: str) -> str:
                 base_url = config.get_default_ollama_base_url()
 
         if adapter == "azure":
-            api_version = config.app.get(
-                provider.config_key("api_version"), "2024-02-15-preview"
-            )
+            api_version = get_config_value(f'app.{provider.config_key("api_version")}', "2024-02-15-preview")
 
         extra_values = {
             field.config_suffix: (
-                config.app.get(provider.config_key(field.config_suffix), "")
+                get_config_value(f'app.{provider.config_key(field.config_suffix)}', "")
                 or field.default_value
             )
             for field in provider.extra_fields
