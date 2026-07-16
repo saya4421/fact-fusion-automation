@@ -1221,7 +1221,7 @@ def generate_video(
                 font_size=params.font_size,
             )
 
-        if subtitle_path and os.path.exists(subtitle_path):
+        if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
             # Read subtitle file to check if it has content
             try:
                 with open(subtitle_path, 'r', encoding='utf-8') as f:

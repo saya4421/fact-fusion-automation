@@ -31,6 +31,7 @@ try:
     PIPER_URL = tts_config.get('piper_url', "http://localhost:5002")
     EDGE_ENABLED = True  # Re-enabled with CLI mode (more reliable)
     GTTS_ENABLED = True  # gTTS as fallback (simple, reliable)
+    ESPEAK_ENABLED = True  # espeak-ng: offline, guaranteed, robotic but works
     AZURE_ENABLED = tts_config.get('azure_enabled', False)
     GOOGLE_ENABLED = tts_config.get('google_enabled', False)
     AZURE_KEY = tts_config.get('azure_key', None)
@@ -52,6 +53,7 @@ class HybridTTSManager:
         self.piper_url = PIPER_URL
         self.edge_enabled = EDGE_ENABLED
         self.gtts_enabled = GTTS_ENABLED
+        self.espeak_enabled = ESPEAK_ENABLED
         self.azure_enabled = AZURE_ENABLED
         self.google_enabled = GOOGLE_ENABLED
         
@@ -90,6 +92,8 @@ class HybridTTSManager:
                     return self._generate_edge(text, voice, output_path)
                 elif provider_name == "gtts":
                     return self._generate_gtts(text, voice, output_path)
+                elif provider_name == "espeak":
+                    return self._generate_espeak(text, voice, output_path)
                 elif provider_name == "azure":
                     return self._generate_azure(text, voice, output_path)
                 elif provider_name == "google":
@@ -124,6 +128,10 @@ class HybridTTSManager:
         # 3. gTTS (simple fallback)
         if self.gtts_enabled:
             order.append("gtts")
+        
+        # 4. espeak-ng (offline, guaranteed - last resort)
+        if self.espeak_enabled:
+            order.append("espeak")
         
         # 4. Paid providers
         if self.azure_enabled:
@@ -210,7 +218,7 @@ class HybridTTSManager:
                 ],
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=120
             )
             
             if result.returncode != 0:
@@ -267,6 +275,59 @@ class HybridTTSManager:
             raise RuntimeError("gTTS not installed - run: pip install gtts")
         except Exception as e:
             raise RuntimeError(f"gTTS error: {str(e)}")
+    
+    def _generate_espeak(
+        self,
+        text: str,
+        voice: str,
+        output_path: str
+    ) -> Tuple[str, Optional[str]]:
+        """Generate using espeak-ng (OFFLINE, guaranteed to work)."""
+        import subprocess
+        
+        # Map voice to espeak language
+        # Default: English US
+        lang = "en-us"
+        if voice and "-" in voice:
+            lang_map = {
+                "en": "en-us", "en-US": "en-us", "en-GB": "en-gb",
+                "id": "id", "id-ID": "id",
+                "ja": "ja", "zh": "cmn", "ko": "ko",
+                "fr": "fr", "de": "de", "es": "es",
+            }
+            base = voice.split("-")[0].lower()
+            lang = lang_map.get(base, "en-us")
+        
+        # espeak-ng outputs WAV directly
+        try:
+            result = subprocess.run(
+                [
+                    "espeak-ng",
+                    "-v", lang,
+                    "-w", output_path,
+                    "--stdin"
+                ],
+                input=text,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0 and not os.path.exists(output_path):
+                raise RuntimeError(f"espeak-ng failed: {result.stderr}")
+            
+            # espeak might output WAV with .wav extension already
+            if not os.path.exists(output_path):
+                # Try without .wav extension handling
+                raise RuntimeError("espeak-ng did not produce output file")
+            
+            logger.info(f"espeak-ng generated: {output_path}")
+            return output_path, None  # No subtitles
+            
+        except FileNotFoundError:
+            raise RuntimeError("espeak-ng not installed - run: sudo dnf install espeak-ng")
+        except Exception as e:
+            raise RuntimeError(f"espeak-ng error: {str(e)}")
     
     def _generate_azure(
         self,
