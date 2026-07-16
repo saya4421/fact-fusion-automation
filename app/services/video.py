@@ -176,7 +176,8 @@ def _prioritize_unique_source_clips(
         f"primary clips: {len(primary_items)}, "
         f"fallback clips: {len(overflow_items)}"
     )
-    return primary_items + overflow_items
+    # Only use primary items (one per source) - NO overflow/duplicates
+    return primary_items
 
 
 def get_ffmpeg_binary():
@@ -618,6 +619,13 @@ def combine_videos(
     
     logger.info(f"starting clip processing: {len(subclipped_items)} subclips, required duration: {required_video_duration:.2f}s")
     
+    # Calculate if we need to slow down clips (no duplicates!)
+    total_source_duration = sum(item.duration for item in subclipped_items)
+    if total_source_duration < required_video_duration:
+        slowdown_factor = required_video_duration / total_source_duration
+        normalized_clip_speed = normalized_clip_speed / slowdown_factor
+        logger.info(f"applying slowdown: {slowdown_factor:.2f}x, new speed: {normalized_clip_speed:.2f}x")
+    
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
     for i, subclipped_item in enumerate(subclipped_items):
         if video_duration >= required_video_duration:
@@ -724,40 +732,7 @@ def combine_videos(
         except Exception as e:
             logger.error(f"failed to process clip: {str(e)}")
     
-    # loop processed clips until the video duration covers the audio duration and the small safety margin.
-    if video_duration < required_video_duration:
-        logger.warning(
-            f"video duration ({video_duration:.2f}s) is shorter than required duration "
-            f"({required_video_duration:.2f}s), looping clips to match audio length."
-        )
-        base_clips = processed_clips.copy()
-        if not base_clips:
-            logger.error("No base clips to loop!")
-            return combined_video_path
-        
-        # Limit each clip to appear max 2 times (1 original + 1 loop)
-        max_total_clips = len(base_clips) * 2
-        loop_count = 0
-        for clip in itertools.cycle(base_clips):
-            if video_duration >= required_video_duration:
-                break
-            if len(processed_clips) >= max_total_clips:
-                logger.warning(f"max clip limit reached ({max_total_clips}), stopping loop")
-                break
-            processed_clips.append(clip)
-            clip_dur = clip.duration if hasattr(clip, 'duration') and clip.duration > 0 else 5.0
-            video_duration += clip_dur
-            loop_count += 1
-            if loop_count > 100:  # Safety limit
-                logger.warning(f"loop limit reached at {loop_count} iterations, stopping")
-                break
-        logger.info(
-            f"video duration: {video_duration:.2f}s, audio duration: {audio_duration:.2f}s, "
-            f"required duration: {required_video_duration:.2f}s, "
-            f"base clips: {len(base_clips)}, total clips: {len(processed_clips)}, looped {len(processed_clips)-len(base_clips)} clips"
-        )
-    else:
-        logger.info(f"video duration ({video_duration:.2f}s) >= required ({required_video_duration:.2f}s), no looping needed")
+    logger.info(f"video duration ({video_duration:.2f}s) >= required ({required_video_duration:.2f}s), no adjustment needed")
      
     # merge video clips progressively, avoid loading all videos at once to avoid memory overflow
     logger.info("starting clip merging process")
@@ -1078,8 +1053,8 @@ def generate_video(
         params.font_size = int(params.font_size)
         params.stroke_width = int(params.stroke_width)
         phrase = subtitle_item[1]
-        # Use 70% of video width for better text wrapping (prevents long lines)
-        max_width = video_width * 0.7
+        # Use 60% of video width for better text wrapping (prevents long lines)
+        max_width = video_width * 0.6
         bg_color = resolve_subtitle_background_color()
         rounded_bg_enabled = bool(
             getattr(params, "rounded_subtitle_background", False) and bg_color
@@ -1272,30 +1247,8 @@ def generate_video(
             if sub and hasattr(sub, 'subtitles') and sub.subtitles:
                 text_clips = []
                 for item in sub.subtitles:
-                    # Split long phrases into individual lines that appear sequentially
-                    phrase = item[1]
-                    start_time = item[0][0]
-                    end_time = item[0][1]
-                    
-                    # If phrase has multiple sentences, split them
-                    sentences = phrase.replace('。', '.').replace('！', '.').replace('？', '.').split('.')
-                    sentences = [s.strip() for s in sentences if s.strip()]
-                    
-                    if len(sentences) > 1:
-                        # Multiple sentences: create separate clips for each
-                        duration_per_sentence = (end_time - start_time) / len(sentences)
-                        current_time = start_time
-                        for sentence in sentences:
-                            if sentence.strip():
-                                new_item = ((current_time, current_time + duration_per_sentence), sentence + '.')
-                                clip = create_text_clip(subtitle_item=new_item)
-                                text_clips.append(clip)
-                                current_time += duration_per_sentence
-                    else:
-                        # Single sentence: use original logic
-                        clip = create_text_clip(subtitle_item=item)
-                        text_clips.append(clip)
-                
+                    clip = create_text_clip(subtitle_item=item)
+                    text_clips.append(clip)
                 video_clip = CompositeVideoClip([video_clip, *text_clips])
                 clip_stack.callback(video_clip.close)
 

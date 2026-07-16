@@ -66,11 +66,8 @@ def search_videos_pexels(
         "Authorization": api_key,
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
     }
-    # Build URL with negative keywords to exclude vehicles
-    # Exclude: car, vehicle, road, traffic, street, highway, driving
-    negative_terms = "-car -vehicle -road -traffic -street -highway -driving -automobile -truck -bus"
-    query = f"{search_term} {negative_terms}"
-    params = {"query": query, "per_page": 20, "orientation": aspect_name}
+    # Build URL
+    params = {"query": search_term, "per_page": 20, "orientation": aspect_name}
     query_url = f"https://api.pexels.com/videos/search?{urlencode(params)}"
     logger.info(f"searching videos: {query_url}, with proxies: {get_config_value('app.proxy', {})}")
 
@@ -88,27 +85,32 @@ def search_videos_pexels(
             logger.error(f"search videos failed: {response}")
             return video_items
         videos = response["videos"]
-        # Keywords that indicate vehicle content (must exclude these)
-        vehicle_keywords = ['car', 'vehicle', 'road', 'traffic', 'street', 'highway', 
-                           'driving', 'automobile', 'truck', 'bus', 'taxi', 'wheel', 
-                           'tire', 'transport', 'city', 'urban', 'bridge']
+        # Filter out vehicle content
+        vehicle_keywords = ['car', 'vehicle', 'road', 'traffic', 'street', 
+                           'driving', 'automobile', 'truck', 'bus', 'motorcycle',
+                           'wheel', 'tire', 'transport', 'highway', 'parking']
         
-        # loop through each video in the result
         for v in videos:
             duration = v["duration"]
-            # check if video has desired minimum duration
             if duration < minimum_duration:
                 continue
             
-            # Check video tags for vehicle content
-            video_tags = v.get("tags", "").lower()
-            has_vehicle = any(keyword in video_tags for keyword in vehicle_keywords)
-            if has_vehicle:
-                logger.debug(f"skipping video with vehicle tags: {video_tags}")
+            # Check tags + url + user for vehicle content
+            tags = v.get("tags", [])
+            if isinstance(tags, list):
+                tag_text = " ".join(tags).lower()
+            else:
+                tag_text = str(tags).lower()
+            
+            # Also check user name and video URL
+            user_name = v.get("user", {}).get("name", "").lower()
+            video_url = v.get("url", "").lower()
+            check_text = f"{tag_text} {user_name} {video_url}"
+            
+            if any(kw in check_text for kw in vehicle_keywords):
                 continue
             
             video_files = v["video_files"]
-            # loop through each url to determine the best quality
             for video in video_files:
                 w = int(video["width"])
                 h = int(video["height"])
@@ -119,138 +121,6 @@ def search_videos_pexels(
                     item.duration = duration
                     video_items.append(item)
                     break
-        return video_items
-    except Exception as e:
-        logger.error(f"search videos failed: {str(e)}")
-
-    return []
-
-
-def search_videos_pixabay(
-    search_term: str,
-    minimum_duration: int,
-    video_aspect: VideoAspect = VideoAspect.portrait,
-) -> List[MaterialInfo]:
-    aspect = VideoAspect(video_aspect)
-
-    video_width, video_height = aspect.to_resolution()
-
-    api_key = get_api_key("pixabay_api_keys")
-    # Build URL
-    params = {
-        "q": search_term,
-        "video_type": "all",  # Accepted values: "all", "film", "animation"
-        "per_page": 50,
-        "key": api_key,
-    }
-    query_url = f"https://pixabay.com/api/videos/?{urlencode(params)}"
-    logger.info(f"searching videos: {query_url}, with proxies: {get_config_value('app.proxy', {})}")
-
-    try:
-        r = requests.get(
-            query_url, proxies=get_config_value('app.proxy', {}), verify=_get_tls_verify(), timeout=(30, 60)
-        )
-        response = r.json()
-        video_items = []
-        if "hits" not in response:
-            logger.error(f"search videos failed: {response}")
-            return video_items
-        videos = response["hits"]
-        # loop through each video in the result
-        for v in videos:
-            duration = v["duration"]
-            # check if video has desired minimum duration
-            if duration < minimum_duration:
-                continue
-            video_files = v["videos"]
-            # loop through each url to determine the best quality
-            for video_type in video_files:
-                video = video_files[video_type]
-                w = int(video["width"])
-                # h = int(video["height"])
-                if w >= video_width:
-                    item = MaterialInfo()
-                    item.provider = "pixabay"
-                    item.url = video["url"]
-                    item.duration = duration
-                    video_items.append(item)
-                    break
-        return video_items
-    except Exception as e:
-        logger.error(f"search videos failed: {str(e)}")
-
-    return []
-
-
-def search_videos_coverr(
-    search_term: str,
-    minimum_duration: int,
-    video_aspect: VideoAspect = VideoAspect.portrait,
-) -> List[MaterialInfo]:
-    """
-    Coverr (https://coverr.co) - free HD/4K stock videos,
-    subject to Coverr license terms (https://coverr.co/license).
-
-    Coverr API notes (based on official docs at api.coverr.co/docs/):
-      - 鉴权: Authorization: Bearer <api_key>
-      - 搜索端点: GET /videos?query=...,响应结构 {"hits": [...], ...}
-      - 加 ?urls=true 在搜索响应里直接返回 mp4 直链
-      - URL 是 signed JWT(绑定 API key,无过期时间)
-      - Coverr 库以 16:9 横屏为主,9:16 portrait 占比极低(约 1%)
-        因此本函数不做 aspect_ratio 过滤,由下游 video.py 的
-        resize + letterbox 逻辑统一处理
-      - duration 字段同时存在 number 和 string 两种形态,本函数都接受
-
-    本函数使用 urls.mp4_download 字段作为下载地址 —— 按 Coverr 官方文档
-    (https://api.coverr.co/docs/videos/#download-a-video) 的说法,
-    GET 这个 URL 本身就被 Coverr 当作一次合法的 download 事件计入统计,
-    无需再调用 PATCH /videos/:id/stats/downloads。
-    """
-    api_key = get_api_key("coverr_api_keys")
-    headers = {"Authorization": f"Bearer {api_key}"}
-    params = {
-        "query": search_term,
-        "page_size": 20,
-        "urls": "true",
-        "sort": "popular",
-    }
-    query_url = f"https://api.coverr.co/videos?{urlencode(params)}"
-    logger.info(f"searching videos: {query_url}, with proxies: {get_config_value('app.proxy', {})}")
-
-    try:
-        r = requests.get(
-            query_url,
-            headers=headers,
-            proxies=get_config_value('app.proxy', {}),
-            verify=_get_tls_verify(),
-            timeout=(30, 60),
-        )
-        response = r.json()
-        video_items: List[MaterialInfo] = []
-
-        if not isinstance(response, dict) or "hits" not in response:
-            logger.error(f"search videos failed: {response}")
-            return video_items
-
-        for v in response["hits"]:
-            # duration 在不同响应里可能是 number(11.625) 或 string("10.500000")
-            try:
-                duration = int(float(v.get("duration") or 0))
-            except (TypeError, ValueError):
-                continue
-            if duration < minimum_duration:
-                continue
-
-            video_id = v.get("id")
-            mp4_download_url = (v.get("urls") or {}).get("mp4_download")
-            if not video_id or not mp4_download_url:
-                continue
-
-            item = MaterialInfo()
-            item.provider = "coverr"
-            item.url = mp4_download_url
-            item.duration = duration
-            video_items.append(item)
         return video_items
     except Exception as e:
         logger.error(f"search videos failed: {str(e)}")
@@ -328,11 +198,11 @@ def download_videos(
     max_clip_duration: int = 5,
     match_script_order: bool = False,
 ) -> List[str]:
+    # Pexels only — no fallback
     search_videos = search_videos_pexels
-    if source == "pixabay":
-        search_videos = search_videos_pixabay
-    elif source == "coverr":
-        search_videos = search_videos_coverr
+    # Removed: pixabay, coverr (not used)
+    # Removed: source == "coverr": search_videos_coverr
+    # Removed: source == "pexels": search_videos = search_videos_pexels
 
     material_directory = get_config_value('app.material_directory', '').strip()
     if material_directory == "task":
@@ -355,18 +225,22 @@ def download_videos(
     valid_video_urls = []
     found_duration = 0.0
     for search_term in search_terms:
-        video_items = search_videos(
-            search_term=search_term,
-            minimum_duration=max_clip_duration,
-            video_aspect=video_aspect,
-        )
-        logger.info(f"found {len(video_items)} videos for '{search_term}'")
-
-        for item in video_items:
-            if item.url not in valid_video_urls:
-                valid_video_items.append(item)
-                valid_video_urls.append(item.url)
-                found_duration += item.duration
+        # Search only Pexels for better relevance
+        try:
+            video_items = search_videos_pexels(
+                search_term=search_term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+            )
+            logger.info(f"found {len(video_items)} videos from search_videos_pexels for '{search_term}'")
+            for item in video_items:
+                if item.url not in valid_video_urls:
+                    valid_video_items.append(item)
+                    valid_video_urls.append(item.url)
+                    found_duration += item.duration
+        except Exception as e:
+            logger.warning(f"search failed for Pexels: {e}")
+            continue
 
     logger.info(
         f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds"

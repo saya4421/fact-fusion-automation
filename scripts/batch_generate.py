@@ -101,6 +101,9 @@ def generate_batch(args):
         from app.services.llm import generate_script
         # Simple topic generation
         default_topics = [
+            "AI Facts",
+            "Amazing AI Breakthroughs",
+            "Artificial Intelligence Facts",
             "Amazing Facts About Space",
             "Mind-Blowing Science Discoveries",
             "Incredible Animal Facts",
@@ -154,14 +157,20 @@ def generate_batch(args):
             
             # Step 3: Download materials
             from app.services.material import download_videos
-            pexels_key = settings.get('app', {}).get('pexels_api_keys', [''])[0]
             from app.models.schema import VideoAspect
+            # Get actual audio duration for download target
+            import subprocess
+            audio_dur = float(subprocess.check_output(
+                ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                 '-of', 'default=noprint_wrappers=1:nokey=1', audio_path]
+            ).decode().strip())
+            logger.info(f"Audio duration: {audio_dur:.1f}s, downloading enough clips")
             materials = download_videos(
                 task_id=f"video_{i}",
                 search_terms=[topic],
                 source="pexels",
                 video_aspect=VideoAspect.portrait,
-                audio_duration=args.duration,
+                audio_duration=audio_dur,
                 max_clip_duration=5,
                 match_script_order=False
             )
@@ -208,7 +217,7 @@ def generate_batch(args):
                 voice_name=voice_name,
                 video_clip_duration=5,
                 video_count=1,
-                subtitle_enabled=True,
+                subtitle_enabled=settings.get('subtitle', {}).get('enabled', False),
                 video_language='en',
                 video_source='pexels'
             )

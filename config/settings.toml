@@ -5,11 +5,8 @@ name = "Fact Fusion Automation"
 version = "1.0.0"
 debug = false
 video_source = "pexels"
-fallback_sources = ["pixabay", "coverr", "mixkit"]
+fallback_sources = []
 pexels_api_keys = ["qBHEjtn74KGvok8MENiwg3R2vQqCHyGPl3HhiA0WNMJPGX5PcJmFSkja"]
-pixabay_api_keys = []
-coverr_api_keys = []
-mixkit_api_keys = []
 llm_provider = "openai"
 openai_api_key = ""  # Set in config/.env (NOT in git!)
 openai_base_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
@@ -38,9 +35,9 @@ video_codec = "h264"
 
 # Subtitle Settings
 [subtitle]
-enabled = true
+enabled = false
 font = "~/Projects/fact-fusion-automation/resource/fonts/Roboto-Regular.ttf"
-font_size = 38
+font_size = 32
 font_color = "#FFFFFF"
 stroke_color = "#000000"
 stroke_width = 2
