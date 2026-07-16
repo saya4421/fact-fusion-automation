@@ -29,7 +29,8 @@ try:
     # Use dict access for config (settings.toml structure)
     tts_config = config.get('tts', {})
     PIPER_URL = tts_config.get('piper_url', "http://localhost:5002")
-    EDGE_ENABLED = tts_config.get('edge_enabled', True)
+    EDGE_ENABLED = True  # Re-enabled with CLI mode (more reliable)
+    GTTS_ENABLED = True  # gTTS as fallback (simple, reliable)
     AZURE_ENABLED = tts_config.get('azure_enabled', False)
     GOOGLE_ENABLED = tts_config.get('google_enabled', False)
     AZURE_KEY = tts_config.get('azure_key', None)
@@ -50,6 +51,7 @@ class HybridTTSManager:
     def __init__(self):
         self.piper_url = PIPER_URL
         self.edge_enabled = EDGE_ENABLED
+        self.gtts_enabled = GTTS_ENABLED
         self.azure_enabled = AZURE_ENABLED
         self.google_enabled = GOOGLE_ENABLED
         
@@ -86,6 +88,8 @@ class HybridTTSManager:
                     return self._generate_piper(text, voice, output_path)
                 elif provider_name == "edge":
                     return self._generate_edge(text, voice, output_path)
+                elif provider_name == "gtts":
+                    return self._generate_gtts(text, voice, output_path)
                 elif provider_name == "azure":
                     return self._generate_azure(text, voice, output_path)
                 elif provider_name == "google":
@@ -117,15 +121,19 @@ class HybridTTSManager:
         if self.edge_enabled:
             order.append("edge")
         
-        # 3. Paid providers
+        # 3. gTTS (simple fallback)
+        if self.gtts_enabled:
+            order.append("gtts")
+        
+        # 4. Paid providers
         if self.azure_enabled:
             order.append("azure")
         if self.google_enabled:
             order.append("google")
         
-        # Fallback to Edge if nothing else
+        # Fallback to gTTS if nothing else (most reliable)
         if not order:
-            order.append("edge")
+            order.append("gtts")
         
         return order
     
@@ -179,45 +187,86 @@ class HybridTTSManager:
         voice: str,
         output_path: str
     ) -> Tuple[str, Optional[str]]:
-        """Generate using Edge TTS (FREE, online)."""
-        import asyncio
-        import edge_tts
-        from edge_tts import SubMaker
+        """Generate using Edge TTS CLI (FREE, online) - more reliable than WebSocket."""
+        import subprocess
         
         # Edge TTS voice format: "en-US-JennyNeural"
         if not voice or voice == "auto":
-            voice = "en-US-JennyNeural"
+            voice = "en-US-GuyNeural"
         
-        async def _generate():
-            communicate = edge_tts.Communicate(text, voice)
-            submaker = SubMaker()
-            
-            with open(output_path, "wb") as audio_file:
-                async for chunk in communicate.stream():
-                    if chunk["type"] == "audio":
-                        audio_file.write(chunk["data"])
-                    elif chunk["type"] == "WordBoundary":
-                        submaker.create_sub(
-                            chunk["offset"],
-                            chunk["duration"],
-                            chunk["text"]
-                        )
-            
-            # Generate subtitle file
-            subtitle_path = output_path.replace(".wav", ".srt").replace(".mp3", ".srt")
-            with open(subtitle_path, "w", encoding="utf-8") as f:
-                # edge-tts newer versions use 'subs' property instead of 'generate_subs()'
-                if hasattr(submaker, 'generate_subs'):
-                    f.write(submaker.generate_subs())
-                elif hasattr(submaker, 'subs'):
-                    f.write(submaker.subs)
-                else:
-                    logger.warning("Could not generate subtitles - SubMaker API changed")
-                    f.write("")  # Write empty file
-            
-            return output_path, subtitle_path
+        # Use edge-tts CLI directly (more reliable)
+        mp3_path = output_path.replace(".wav", ".mp3")
+        subtitle_path = mp3_path.replace(".mp3", ".srt")
         
-        return asyncio.run(_generate())
+        try:
+            # Generate audio + subtitles with CLI
+            result = subprocess.run(
+                [
+                    "edge-tts",
+                    "--text", text,
+                    "--voice", voice,
+                    "--write-media", mp3_path,
+                    "--write-subtitles", subtitle_path
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            
+            if result.returncode != 0:
+                raise RuntimeError(f"edge-tts CLI failed: {result.stderr}")
+            
+            # Convert MP3 to WAV for compatibility
+            if os.path.exists(mp3_path):
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", mp3_path, output_path],
+                    capture_output=True,
+                    check=True
+                )
+                os.remove(mp3_path)
+            
+            if not os.path.exists(output_path):
+                raise RuntimeError("Failed to generate audio file")
+            
+            logger.info(f"Edge TTS generated: {output_path}")
+            return output_path, (subtitle_path if os.path.exists(subtitle_path) else None)
+            
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("Edge TTS timeout - network issue")
+        except FileNotFoundError:
+            raise RuntimeError("edge-tts CLI not found - run: pip install edge-tts")
+        except Exception as e:
+            raise RuntimeError(f"Edge TTS error: {str(e)}")
+    
+    def _generate_gtts(
+        self,
+        text: str,
+        voice: str,
+        output_path: str
+    ) -> Tuple[str, Optional[str]]:
+        """Generate using gTTS (Google TTS - FREE, simple HTTP API)."""
+        try:
+            from gtts import gTTS
+            
+            # gTTS doesn't support voice selection, uses auto-detect
+            lang = "en"
+            if voice and "-" in voice:
+                # Extract language from voice code (e.g., "en-US-GuyNeural" -> "en")
+                lang = voice.split("-")[0]
+            
+            tts = gTTS(text=text, lang=lang, slow=False)
+            tts.save(output_path)
+            
+            if not os.path.exists(output_path):
+                raise RuntimeError("gTTS failed to generate audio file")
+            
+            logger.info(f"gTTS generated: {output_path}")
+            return output_path, None  # No subtitles
+            
+        except ImportError:
+            raise RuntimeError("gTTS not installed - run: pip install gtts")
+        except Exception as e:
+            raise RuntimeError(f"gTTS error: {str(e)}")
     
     def _generate_azure(
         self,

@@ -94,6 +94,23 @@ _SUPPORTED_VIDEO_CODECS = (
 )
 _runtime_disabled_video_codecs = set()
 
+# Video quality settings from config
+def _get_video_bitrate() -> str:
+    """Get video bitrate from config (default: 10000 kbps for YouTube Shorts quality)"""
+    bitrate = get_config_value('video.bitrate', 10000)
+    return f"{int(bitrate)}k"
+
+def _get_subtitle_font() -> str:
+    """Get subtitle font path from config"""
+    font = get_config_value('subtitle.font', None)
+    if font:
+        # Expand ~ to home directory
+        font = os.path.expanduser(font)
+        if os.path.exists(font):
+            return font
+    # Fallback to system fonts
+    return None
+
 
 def _get_required_video_duration(audio_duration: float) -> float:
     """
@@ -342,60 +359,44 @@ def concat_video_clips_with_ffmpeg(
     output_dir: str,
     max_duration: float | None = None,
 ):
+    """Concatenate video clips using simple ffmpeg concat (no xfade - more stable)."""
+    
+    if not clip_files:
+        raise ValueError("No clip files provided")
+    
+    # Use simple concat demuxer - most reliable method
     concat_list_file = os.path.join(output_dir, "ffmpeg-concat-list.txt")
     with open(concat_list_file, "w", encoding="utf-8") as fp:
         for clip_file in clip_files:
-            fp.write(f"file '{_format_ffmpeg_concat_path(clip_file)}'\n")
-
-    def build_command(codec: str) -> list[str]:
-        command = [
-            utils.get_ffmpeg_binary(),
-            "-y",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            concat_list_file,
-            "-c:v",
-            codec,
-            "-threads",
-            str(threads or 2),
-            "-pix_fmt",
-            "yuv420p",
-        ]
-        if max_duration is not None and max_duration > 0:
-            command.extend(["-t", f"{max_duration:.3f}"])
-        command.append(output_file)
-        return command
-
-    def run_concat(codec: str):
-        command = build_command(codec)
-        # 使用 ffmpeg 只做一次串联与编码，避免 MoviePy 逐段合并时反复重编码，
-        # 从而降低画质劣化与颜色偏移风险。
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            error_message = (result.stderr or result.stdout or "").strip()
-            raise RuntimeError(error_message or "ffmpeg concat failed")
-        return codec
-
-    try:
-        effective_codec = _get_effective_video_codec()
-        try:
-            return run_concat(effective_codec)
-        except Exception as exc:
-            if effective_codec == _DEFAULT_VIDEO_CODEC:
-                raise
-            result_codec = run_concat(_DEFAULT_VIDEO_CODEC)
-            _disable_runtime_video_codec(effective_codec, str(exc))
-            return result_codec
-    finally:
-        delete_files(concat_list_file)
+            # Escape single quotes in file paths
+            safe_path = clip_file.replace("'", "'\\''")
+            fp.write(f"file '{safe_path}'\n")
+    
+    command = [
+        utils.get_ffmpeg_binary(),
+        "-y",
+        "-f", "concat",
+        "-safe", "0",
+        "-i", concat_list_file,
+        "-c:v", "mpeg4",  # Use mpeg4 (available on all systems)
+        "-q:v", "2",      # High quality (1-31, lower=better)
+        "-threads", str(threads or 2),
+        "-pix_fmt", "yuv420p",
+    ]
+    
+    if max_duration is not None and max_duration > 0:
+        command.extend(["-t", f"{max_duration:.3f}"])
+    
+    command.append(output_file)
+    
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    
+    # Cleanup
+    if os.path.exists(concat_list_file):
+        os.remove(concat_list_file)
+    
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr or "ffmpeg concat failed")
 
 
 def _sanitize_image_file(image_path: str) -> str:
@@ -615,10 +616,15 @@ def combine_videos(
         
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
     
+    logger.info(f"starting clip processing: {len(subclipped_items)} subclips, required duration: {required_video_duration:.2f}s")
+    
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
     for i, subclipped_item in enumerate(subclipped_items):
         if video_duration >= required_video_duration:
+            logger.info(f"video duration ({video_duration:.2f}s) >= required ({required_video_duration:.2f}s), stopping clip addition")
             break
+        
+        logger.info(f"processing clip {i+1}/{len(subclipped_items)}: duration={subclipped_item.duration:.2f}s, total so far: {video_duration:.2f}s")
         
         logger.debug(
             f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, "
@@ -697,6 +703,7 @@ def combine_videos(
                 codec=_get_configured_video_codec(),
                 logger=None,
                 fps=fps,
+                bitrate=_get_video_bitrate(),
             )
 
             # Store clip duration before closing
@@ -724,16 +731,33 @@ def combine_videos(
             f"({required_video_duration:.2f}s), looping clips to match audio length."
         )
         base_clips = processed_clips.copy()
+        if not base_clips:
+            logger.error("No base clips to loop!")
+            return combined_video_path
+        
+        # Limit each clip to appear max 2 times (1 original + 1 loop)
+        max_total_clips = len(base_clips) * 2
+        loop_count = 0
         for clip in itertools.cycle(base_clips):
             if video_duration >= required_video_duration:
                 break
+            if len(processed_clips) >= max_total_clips:
+                logger.warning(f"max clip limit reached ({max_total_clips}), stopping loop")
+                break
             processed_clips.append(clip)
-            video_duration += clip.duration
+            clip_dur = clip.duration if hasattr(clip, 'duration') and clip.duration > 0 else 5.0
+            video_duration += clip_dur
+            loop_count += 1
+            if loop_count > 100:  # Safety limit
+                logger.warning(f"loop limit reached at {loop_count} iterations, stopping")
+                break
         logger.info(
             f"video duration: {video_duration:.2f}s, audio duration: {audio_duration:.2f}s, "
             f"required duration: {required_video_duration:.2f}s, "
-            f"looped {len(processed_clips)-len(base_clips)} clips"
+            f"base clips: {len(base_clips)}, total clips: {len(processed_clips)}, looped {len(processed_clips)-len(base_clips)} clips"
         )
+    else:
+        logger.info(f"video duration ({video_duration:.2f}s) >= required ({required_video_duration:.2f}s), no looping needed")
      
     # merge video clips progressively, avoid loading all videos at once to avoid memory overflow
     logger.info("starting clip merging process")
@@ -995,13 +1019,52 @@ def generate_video(
 
     font_path = ""
     if params.subtitle_enabled:
-        if not params.font_name:
-            params.font_name = "STHeitiMedium.ttc"
-        font_path = os.path.join(utils.font_dir(), params.font_name)
-        if os.name == "nt":
-            font_path = font_path.replace("\\", "/")
+        # Try to get font from config first, fallback to params.font_name
+        config_font = _get_subtitle_font()
+        if config_font:
+            font_path = config_font
+            logger.info(f"Using subtitle font from config: {font_path}")
+        else:
+            if not params.font_name:
+                params.font_name = "STHeitiMedium.ttc"
+            font_path = os.path.join(utils.font_dir(), params.font_name)
+            if os.name == "nt":
+                font_path = font_path.replace("\\", "/")
 
         logger.info(f"  ⑤ font: {font_path}")
+    
+    # Trim video to match audio duration (critical for avoiding mismatch)
+    import subprocess
+    audio_duration_result = subprocess.run(
+        ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1', audio_path],
+        capture_output=True, text=True
+    ).stdout.strip()
+    
+    # Parse duration from ffprobe output (format: "duration=13.080000")
+    audio_dur = None
+    if audio_duration_result:
+        if '=' in audio_duration_result:
+            audio_dur = float(audio_duration_result.split('=')[1])
+        else:
+            audio_dur = float(audio_duration_result)
+    
+    if audio_dur:
+        logger.info(f"Audio duration: {audio_dur:.2f}s - trimming video to match")
+        
+        # Create trimmed video
+        trimmed_video = video_path.replace('.mp4', '.trimmed.mp4')
+        subprocess.run([
+            'ffmpeg', '-y', '-i', video_path,
+            '-t', f'{audio_dur:.3f}',
+            '-c', 'copy',
+            trimmed_video
+        ], capture_output=True, check=False)
+        
+        if os.path.exists(trimmed_video):
+            logger.info(f"Trimmed video created: {trimmed_video}")
+            video_path = trimmed_video
+        else:
+            logger.warning("Failed to trim video, using original")
 
     def resolve_subtitle_background_color():
         # 兼容历史参数：API 里 `text_background_color` 既可能是布尔值，
@@ -1015,7 +1078,8 @@ def generate_video(
         params.font_size = int(params.font_size)
         params.stroke_width = int(params.stroke_width)
         phrase = subtitle_item[1]
-        max_width = video_width * 0.9
+        # Use 70% of video width for better text wrapping (prevents long lines)
+        max_width = video_width * 0.7
         bg_color = resolve_subtitle_background_color()
         rounded_bg_enabled = bool(
             getattr(params, "rounded_subtitle_background", False) and bg_color
@@ -1144,7 +1208,8 @@ def generate_video(
         _clip = _clip.with_end(subtitle_item[0][1])
         _clip = _clip.with_duration(duration)
         if params.subtitle_position == "bottom":
-            _clip = _clip.with_position(("center", video_height * 0.95 - _clip.h))
+            # Position at 80% from top (20% from bottom) - lower and more visible
+            _clip = _clip.with_position(("center", video_height * 0.80 - _clip.h))
         elif params.subtitle_position == "top":
             _clip = _clip.with_position(("center", video_height * 0.05))
         elif params.subtitle_position == "custom":
@@ -1207,8 +1272,30 @@ def generate_video(
             if sub and hasattr(sub, 'subtitles') and sub.subtitles:
                 text_clips = []
                 for item in sub.subtitles:
-                    clip = create_text_clip(subtitle_item=item)
-                    text_clips.append(clip)
+                    # Split long phrases into individual lines that appear sequentially
+                    phrase = item[1]
+                    start_time = item[0][0]
+                    end_time = item[0][1]
+                    
+                    # If phrase has multiple sentences, split them
+                    sentences = phrase.replace('。', '.').replace('！', '.').replace('？', '.').split('.')
+                    sentences = [s.strip() for s in sentences if s.strip()]
+                    
+                    if len(sentences) > 1:
+                        # Multiple sentences: create separate clips for each
+                        duration_per_sentence = (end_time - start_time) / len(sentences)
+                        current_time = start_time
+                        for sentence in sentences:
+                            if sentence.strip():
+                                new_item = ((current_time, current_time + duration_per_sentence), sentence + '.')
+                                clip = create_text_clip(subtitle_item=new_item)
+                                text_clips.append(clip)
+                                current_time += duration_per_sentence
+                    else:
+                        # Single sentence: use original logic
+                        clip = create_text_clip(subtitle_item=item)
+                        text_clips.append(clip)
+                
                 video_clip = CompositeVideoClip([video_clip, *text_clips])
                 clip_stack.callback(video_clip.close)
 
@@ -1275,6 +1362,7 @@ def generate_video(
             threads=params.n_threads or 2,
             logger=None,
             fps=fps,
+            bitrate=_get_video_bitrate(),
         )
         return bgm_mix_succeeded
 

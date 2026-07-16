@@ -26,6 +26,7 @@ from app.services.video import generate_video
 from app.services.tts_manager import generate_voiceover  # NEW: Hybrid TTS
 from app.services.trends import get_trending_topics  # NEW: Trends integration
 from app.utils.logger import get_logger
+from app.models.schema import VideoAspect, VideoConcatMode
 
 logger = get_logger(__name__)
 
@@ -170,9 +171,36 @@ def generate_batch(args):
                 continue
             logger.info(f"✅ Downloaded {len(materials)} clips")
             
-            # Step 4: Generate final video
-            from app.services.video import generate_video
+            # Step 4: Combine multiple clips into one video
+            from app.services.video import combine_videos, generate_video
             from app.models.schema import VideoParams
+            
+            # Extract video paths from materials
+            video_paths = []
+            for material in materials:
+                # Handle both string paths and objects with url attribute
+                if isinstance(material, str):
+                    video_paths.append(material)
+                elif hasattr(material, 'url'):
+                    video_paths.append(material.url)
+                else:
+                    video_paths.append(str(material))
+            
+            logger.info(f"🔗 Combining {len(video_paths)} clips...")
+            
+            # Combine videos first
+            combined_video_path = os.path.join(output_dir, f"combined_temp_{i}.mp4")
+            combine_videos(
+                combined_video_path=combined_video_path,
+                video_paths=video_paths,
+                audio_file=audio_path,
+                video_aspect=VideoAspect.portrait,
+                video_concat_mode=VideoConcatMode.random,
+                max_clip_duration=5,
+            )
+            logger.info(f"✅ Combined video created: {combined_video_path}")
+            
+            # Step 5: Generate final video with subtitles
             params = VideoParams(
                 video_subject=topic,
                 video_script=script,
@@ -187,16 +215,18 @@ def generate_batch(args):
             
             output_file = os.path.join(output_dir, f"video_{i}_{topic.replace(' ', '_')[:20]}.mp4")
             
-            # Use first material's video path
-            video_path = materials[0].url if hasattr(materials[0], 'url') else materials[0]
-            
+            # Use combined video path
             result = generate_video(
-                video_path=video_path,
+                video_path=combined_video_path,
                 audio_path=audio_path,
                 subtitle_path=subtitle_path or "",
                 output_file=output_file,
                 params=params
             )
+            
+            # Clean up temp combined video
+            if os.path.exists(combined_video_path):
+                os.remove(combined_video_path)
             
             if result:
                 logger.info(f"✅ Success: {output_file}")

@@ -55,19 +55,22 @@ def get_api_key(cfg_key: str):
 
 def search_videos_pexels(
     search_term: str,
-    minimum_duration: int,
-    video_aspect: VideoAspect = VideoAspect.portrait,
+    video_aspect: str = "portrait",
+    minimum_duration: int = 0,
 ) -> List[MaterialInfo]:
     aspect = VideoAspect(video_aspect)
-    video_orientation = aspect.name
+    aspect_name = aspect.name
     video_width, video_height = aspect.to_resolution()
     api_key = get_api_key("pexels_api_keys")
     headers = {
         "Authorization": api_key,
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
     }
-    # Build URL
-    params = {"query": search_term, "per_page": 20, "orientation": video_orientation}
+    # Build URL with negative keywords to exclude vehicles
+    # Exclude: car, vehicle, road, traffic, street, highway, driving
+    negative_terms = "-car -vehicle -road -traffic -street -highway -driving -automobile -truck -bus"
+    query = f"{search_term} {negative_terms}"
+    params = {"query": query, "per_page": 20, "orientation": aspect_name}
     query_url = f"https://api.pexels.com/videos/search?{urlencode(params)}"
     logger.info(f"searching videos: {query_url}, with proxies: {get_config_value('app.proxy', {})}")
 
@@ -85,12 +88,25 @@ def search_videos_pexels(
             logger.error(f"search videos failed: {response}")
             return video_items
         videos = response["videos"]
+        # Keywords that indicate vehicle content (must exclude these)
+        vehicle_keywords = ['car', 'vehicle', 'road', 'traffic', 'street', 'highway', 
+                           'driving', 'automobile', 'truck', 'bus', 'taxi', 'wheel', 
+                           'tire', 'transport', 'city', 'urban', 'bridge']
+        
         # loop through each video in the result
         for v in videos:
             duration = v["duration"]
             # check if video has desired minimum duration
             if duration < minimum_duration:
                 continue
+            
+            # Check video tags for vehicle content
+            video_tags = v.get("tags", "").lower()
+            has_vehicle = any(keyword in video_tags for keyword in vehicle_keywords)
+            if has_vehicle:
+                logger.debug(f"skipping video with vehicle tags: {video_tags}")
+                continue
+            
             video_files = v["video_files"]
             # loop through each url to determine the best quality
             for video in video_files:
